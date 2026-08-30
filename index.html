@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>לוח בקרת משאבה</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Heebo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #eef3f2;
+    --surface: #ffffff;
+    --surface-2: #e4ece9;
+    --line: #d7e0de;
+    --ink: #16262a;
+    --ink-dim: #56706d;
+    --accent: #b8752e;
+    --accent-ink: #ffffff;
+    --good: #2f8f68;
+    --good-bg: #e3f2ea;
+    --danger: #b8503f;
+    --danger-bg: #f8e9e6;
+    --water: #4f8fb0;
+    --water-2: #366d8c;
+    --shadow: 0 1px 2px rgba(20, 34, 30, 0.06), 0 8px 24px rgba(20, 34, 30, 0.08);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0c1618;
+      --surface: #142226;
+      --surface-2: #1b2d31;
+      --line: #283d42;
+      --ink: #eef5f2;
+      --ink-dim: #93aaa9;
+      --accent: #e0a458;
+      --accent-ink: #1b120a;
+      --good: #5fb88f;
+      --good-bg: #163329;
+      --danger: #d97a6c;
+      --danger-bg: #33201d;
+      --water: #4f95bd;
+      --water-2: #2b5877;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 28px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Heebo", "Segoe UI", sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 40px 20px 64px;
+  }
+
+  .panel {
+    width: 100%;
+    max-width: 640px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  .masthead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .masthead h1 {
+    font-family: "Frank Ruhl Libre", serif;
+    font-weight: 700;
+    font-size: 1.7rem;
+    margin: 0;
+    letter-spacing: 0.01em;
+  }
+
+  .masthead .sub {
+    font-size: 0.82rem;
+    color: var(--ink-dim);
+    font-family: "IBM Plex Mono", monospace;
+    letter-spacing: 0.02em;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+  }
+
+  .tank-card {
+    padding: 24px 26px;
+    display: flex;
+    align-items: center;
+    gap: 26px;
+  }
+
+  .tank-frame { flex-shrink: 0; display: flex; align-items: flex-start; gap: 10px; }
+
+  .tank {
+    position: relative;
+    width: 84px;
+    height: 176px;
+    border: 2px solid var(--line);
+    border-radius: 8px 8px 16px 16px;
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+
+  .water {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 15%;
+    background: linear-gradient(180deg, var(--water) 0%, var(--water-2) 100%);
+    transition: height 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .water::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px;
+    background: rgba(255, 255, 255, 0.28);
+  }
+
+  .rod-line { position: absolute; left: -1px; right: -1px; height: 0; border-top: 2px dashed var(--ink-dim); opacity: 0.55; }
+
+  .rod-cap {
+    position: absolute; left: -6px; top: -6px; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--surface); border: 2px solid var(--ink-dim);
+    transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .rod-cap.wet { background: var(--good); border-color: var(--good); box-shadow: 0 0 0 4px color-mix(in srgb, var(--good) 25%, transparent); }
+
+  .tank-labels {
+    display: flex; flex-direction: column; justify-content: space-between; height: 176px;
+    font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; color: var(--ink-dim); letter-spacing: 0.02em;
+  }
+
+  .sensor-list { flex: 1; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .sensor-row { display: flex; align-items: center; gap: 12px; }
+
+  .sensor-dot {
+    width: 11px; height: 11px; border-radius: 50%; background: var(--surface-2); border: 2px solid var(--ink-dim);
+    flex-shrink: 0; transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .sensor-dot.wet { background: var(--good); border-color: var(--good); box-shadow: 0 0 0 4px color-mix(in srgb, var(--good) 22%, transparent); }
+
+  .sensor-copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .sensor-copy strong { font-size: 0.88rem; }
+  .sensor-copy span { font-size: 0.75rem; color: var(--ink-dim); }
+  .sensor-state { margin-right: auto; font-size: 0.78rem; font-weight: 600; color: var(--ink-dim); white-space: nowrap; }
+  .sensor-state.wet { color: var(--good); }
+
+  .control { padding: 26px 26px 24px; display: flex; flex-direction: column; gap: 20px; }
+  .clock-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .clock-label { font-size: 0.72rem; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; }
+
+  .clock {
+    font-family: "IBM Plex Mono", monospace; font-size: 2.1rem; font-weight: 500;
+    font-variant-numeric: tabular-nums; letter-spacing: 0.01em; line-height: 1; direction: ltr; text-align: left;
+  }
+
+  .clock .date { font-size: 0.95rem; color: var(--ink-dim); margin-top: 4px; font-weight: 400; }
+
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px;
+    font-size: 0.85rem; font-weight: 600; background: var(--surface-2); color: var(--ink-dim);
+    border: 1px solid var(--line); white-space: nowrap;
+  }
+
+  .status-pill .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ink-dim); flex-shrink: 0; }
+
+  .status-pill.on { background: var(--good-bg); color: var(--good); border-color: transparent; }
+
+  .status-pill.on .dot {
+    background: var(--good); box-shadow: 0 0 0 4px color-mix(in srgb, var(--good) 22%, transparent);
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) { .status-pill.on .dot { animation: none; } }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--good) 22%, transparent); }
+    50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--good) 10%, transparent); }
+  }
+
+  .divider { height: 1px; background: var(--line); }
+  .action-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .action-copy { display: flex; flex-direction: column; gap: 2px; }
+  .action-copy strong { font-size: 0.95rem; }
+  .action-copy span { font-size: 0.8rem; color: var(--ink-dim); }
+
+  button { font-family: inherit; cursor: pointer; }
+
+  .switch-btn {
+    border: none; border-radius: 10px; padding: 13px 26px; font-size: 0.95rem; font-weight: 700;
+    background: var(--accent); color: var(--accent-ink);
+    box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 60%, black 15%);
+    transition: transform 0.08s ease, box-shadow 0.08s ease, opacity 0.15s ease;
+  }
+
+  .switch-btn:hover { filter: brightness(1.04); }
+  .switch-btn:active { transform: translateY(2px); box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 60%, black 15%); }
+  .switch-btn.stop { background: var(--surface-2); color: var(--ink); box-shadow: 0 2px 0 var(--line); }
+  .switch-btn.stop:active { box-shadow: 0 0 0 var(--line); }
+  .switch-btn:disabled { opacity: 0.55; cursor: default; }
+
+  button:focus-visible, .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .log-card { padding: 4px 0 6px; }
+  .log-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 26px 14px; }
+  .log-head h2 { font-family: "Frank Ruhl Libre", serif; font-size: 1.05rem; margin: 0; font-weight: 700; }
+  .log-count { font-family: "IBM Plex Mono", monospace; font-size: 0.78rem; color: var(--ink-dim); }
+
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+
+  thead th {
+    text-align: right; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--ink-dim); font-weight: 600; padding: 0 26px 10px; border-bottom: 1px solid var(--line);
+  }
+
+  thead th.num, tbody td.num { text-align: left; }
+  thead th.icon-col { width: 40px; }
+
+  tbody td { padding: 13px 26px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr { transition: background 0.12s ease; }
+  tbody tr:hover { background: var(--surface-2); }
+
+  .start-cell { display: flex; flex-direction: column; gap: 2px; }
+  .start-cell .time { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; font-weight: 500; }
+  .start-cell .date { font-size: 0.76rem; color: var(--ink-dim); }
+  .duration { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+
+  .icon-btn {
+    border: none; background: transparent; color: var(--ink-dim); width: 28px; height: 28px; border-radius: 7px;
+    display: flex; align-items: center; justify-content: center; opacity: 0.55;
+    transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+  }
+
+  tr:hover .icon-btn { opacity: 1; }
+  .icon-btn:hover { background: var(--danger-bg); color: var(--danger); opacity: 1; }
+  .icon-btn:disabled { opacity: 0.3; cursor: default; }
+
+  .empty-row td { padding: 30px 26px; text-align: center; color: var(--ink-dim); font-size: 0.88rem; }
+  .foot-note { font-size: 0.76rem; color: var(--ink-dim); text-align: center; line-height: 1.6; }
+
+  @media (max-width: 460px) {
+    .tank-card { flex-direction: column; align-items: stretch; }
+    .tank-frame { align-self: center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="panel">
+  <div class="masthead">
+    <h1>לוח בקרת משאבה</h1>
+    <div class="sub" id="lastSeen">ESP32-S3 · תא איסוף עיבוי</div>
+  </div>
+
+  <div class="card tank-card">
+    <div class="tank-frame">
+      <div class="tank" id="tank">
+        <div class="water" id="waterFill"></div>
+        <div class="rod-line" style="bottom:72%"><span class="rod-cap" id="topCap"></span></div>
+        <div class="rod-line" style="bottom:28%"><span class="rod-cap" id="bottomCap"></span></div>
+      </div>
+      <div class="tank-labels"><span>MAX</span><span>MIN</span></div>
+    </div>
+
+    <div class="sensor-list">
+      <div class="sensor-row">
+        <span class="sensor-dot" id="topDot"></span>
+        <div class="sensor-copy"><strong>חיישן עליון</strong><span>מפעיל את המשאבה כשהמים מגיעים אליו</span></div>
+        <span class="sensor-state" id="topState">—</span>
+      </div>
+      <div class="sensor-row">
+        <span class="sensor-dot" id="bottomDot"></span>
+        <div class="sensor-copy"><strong>חיישן תחתון</strong><span>עוצר את המשאבה כשהמים יורדים מתחתיו</span></div>
+        <span class="sensor-state" id="bottomState">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card control">
+    <div class="clock-row">
+      <div>
+        <div class="clock-label">שעון (הדפדפן שלך)</div>
+        <div class="clock" id="clock">00:00:00<div class="date" id="clockDate">—</div></div>
+      </div>
+      <div class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">טוען…</span></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="action-row">
+      <div class="action-copy">
+        <strong>הפעלה ידנית</strong>
+        <span id="actionHint">שולח פקודה לבקר בסנכרון הבא שלו (עד 30 שניות)</span>
+      </div>
+      <button class="switch-btn" id="toggleBtn" disabled>טוען…</button>
+    </div>
+  </div>
+
+  <div class="card log-card">
+    <div class="log-head">
+      <h2>יומן הפעלות</h2>
+      <span class="log-count" id="logCount">—</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>שעת התחלה</th><th class="num">משך</th><th class="icon-col"></th></tr></thead>
+        <tbody id="logBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="foot-note" id="footNote">מתחבר ל-GitHub…</div>
+</div>
+
+<script>
+  // ---- הגדרות חיבור ל-GitHub ----
+  var GITHUB_OWNER = "zvikamayer";
+  var GITHUB_REPO = "pump-dashboard";
+  var GITHUB_TOKEN = "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";
+  var FILE_PATH = "data.json";
+  var API_URL = "https://api.github.com/repos/" + GITHUB_OWNER + "/" + GITHUB_REPO + "/contents/" + FILE_PATH;
+  var POLL_MS = 20000;
+
+  function pad(n) { return String(n).padStart(2, "0"); }
+  var DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+
+  function b64DecodeUtf8(str) {
+    return decodeURIComponent(atob(str.replace(/\n/g, "")).split("").map(function (c) {
+      return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(""));
+  }
+
+  function b64EncodeUtf8(str) {
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function (_, p1) {
+      return String.fromCharCode("0x" + p1);
+    }));
+  }
+
+  async function githubGet() {
+    var res = await fetch(API_URL, {
+      headers: { "Authorization": "Bearer " + GITHUB_TOKEN, "Accept": "application/vnd.github+json" }
+    });
+    if (!res.ok) throw new Error("שגיאת קריאה מ-GitHub: " + res.status);
+    var body = await res.json();
+    var data = JSON.parse(b64DecodeUtf8(body.content));
+    return { data: data, sha: body.sha };
+  }
+
+  async function githubPut(data, sha) {
+    var res = await fetch(API_URL, {
+      method: "PUT",
+      headers: { "Authorization": "Bearer " + GITHUB_TOKEN, "Accept": "application/vnd.github+json", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: "עדכון מהאתר",
+        content: b64EncodeUtf8(JSON.stringify(data, null, 2)),
+        sha: sha
+      })
+    });
+    if (!res.ok) throw new Error("שגיאת כתיבה ל-GitHub: " + res.status);
+    var body = await res.json();
+    return body.content.sha;
+  }
+
+  // מבצע שינוי עם ניסיון חוזר אחד אם ה-sha התיישן בינתיים (מישהו אחר כתב במקביל)
+  async function commit(mutatorFn) {
+    var current = await githubGet();
+    mutatorFn(current.data);
+    try {
+      await githubPut(current.data, current.sha);
+    } catch (e) {
+      current = await githubGet();
+      mutatorFn(current.data);
+      await githubPut(current.data, current.sha);
+    }
+  }
+
+  // ---- שעון (שעון הדפדפן שלך, תמיד מדויק) ----
+  var clockEl = document.getElementById("clock");
+  var clockDateEl = document.getElementById("clockDate");
+  function renderClock() {
+    var now = new Date();
+    clockEl.childNodes[0].nodeValue = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
+    clockDateEl.textContent = "יום " + DAYS[now.getDay()] + ", " + pad(now.getDate()) + "/" + pad(now.getMonth() + 1) + "/" + now.getFullYear();
+  }
+  renderClock();
+  setInterval(renderClock, 1000);
+
+  // ---- אלמנטים ----
+  var pill = document.getElementById("statusPill");
+  var statusText = document.getElementById("statusText");
+  var toggleBtn = document.getElementById("toggleBtn");
+  var actionHint = document.getElementById("actionHint");
+  var logBody = document.getElementById("logBody");
+  var logCount = document.getElementById("logCount");
+  var lastSeen = document.getElementById("lastSeen");
+  var footNote = document.getElementById("footNote");
+  var waterFill = document.getElementById("waterFill");
+  var topCap = document.getElementById("topCap"), bottomCap = document.getElementById("bottomCap");
+  var topDot = document.getElementById("topDot"), bottomDot = document.getElementById("bottomDot");
+  var topState = document.getElementById("topState"), bottomState = document.getElementById("bottomState");
+
+  var latestPumpOn = false;
+  var busy = false;
+
+  function fmtDuration(sec) {
+    var m = Math.floor(sec / 60), s = sec % 60;
+    return m + ":" + pad(s);
+  }
+
+  function fmtEpoch(epoch) {
+    if (!epoch) return "לא ידוע (לפני סנכרון שעון)";
+    var d = new Date(epoch * 1000);
+    return { time: pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()),
+             date: pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear() + " · " + DAYS[d.getDay()] };
+  }
+
+  function renderLog(log) {
+    logBody.innerHTML = "";
+    logCount.textContent = log.length + (log.length === 1 ? " רשומה" : " רשומות");
+
+    if (log.length === 0) {
+      logBody.innerHTML = '<tr class="empty-row"><td colspan="3">אין עדיין הפעלות ביומן</td></tr>';
+      return;
+    }
+
+    log.slice().sort(function (a, b) { return b.startEpoch - a.startEpoch; }).forEach(function (entry) {
+      var tr = document.createElement("tr");
+      var f = fmtEpoch(entry.startEpoch);
+      var startHtml = typeof f === "string"
+        ? '<span class="date">' + f + "</span>"
+        : '<span class="time">' + f.time + '</span><span class="date">' + f.date + "</span>";
+      tr.innerHTML =
+        '<td><div class="start-cell">' + startHtml + "</div></td>" +
+        '<td class="num"><span class="duration">' + fmtDuration(entry.durationSec) + "</span></td>" +
+        '<td><button class="icon-btn" aria-label="מחק רשומה" title="מחק רשומה">✕</button></td>';
+      tr.querySelector(".icon-btn").addEventListener("click", function () { deleteEntry(entry.id); });
+      logBody.appendChild(tr);
+    });
+  }
+
+  function renderStatus(data) {
+    latestPumpOn = !!data.pumpOn;
+    pill.classList.toggle("on", latestPumpOn);
+    statusText.textContent = latestPumpOn ? "פועלת" : "כבויה";
+    toggleBtn.textContent = latestPumpOn ? "עצור משאבה" : "הפעל משאבה";
+    toggleBtn.classList.toggle("stop", latestPumpOn);
+    toggleBtn.disabled = false;
+    actionHint.textContent = latestPumpOn
+      ? "המשאבה פועלת כרגע · לחיצה תשלח פקודת עצירה"
+      : "שולח פקודה לבקר בסנכרון הבא שלו (עד 30 שניות)";
+
+    var topWet = !!data.topWet, bottomWet = !!data.bottomWet;
+    var level = topWet ? 88 : (bottomWet ? 50 : 12);
+    waterFill.style.height = level + "%";
+    topCap.classList.toggle("wet", topWet);
+    topDot.classList.toggle("wet", topWet);
+    topState.classList.toggle("wet", topWet);
+    topState.textContent = topWet ? "רטוב" : "יבש";
+    bottomCap.classList.toggle("wet", bottomWet);
+    bottomDot.classList.toggle("wet", bottomWet);
+    bottomState.classList.toggle("wet", bottomWet);
+    bottomState.textContent = bottomWet ? "רטוב" : "יבש";
+
+    if (data.lastUpdate) {
+      var mins = Math.round((Date.now() / 1000 - data.lastUpdate) / 60);
+      lastSeen.textContent = "עודכן מהבקר לפני " + (mins < 1 ? "פחות מדקה" : mins + " דק'");
+    } else {
+      lastSeen.textContent = "הבקר עדיין לא סונכרן";
+    }
+
+    renderLog(data.log || []);
+    footNote.textContent = "מחובר · " + (data.log || []).length + " רשומות ביומן · הבקר בודק פקודות חדשות כל 30 שניות בערך";
+  }
+
+  async function refresh() {
+    try {
+      var current = await githubGet();
+      renderStatus(current.data);
+    } catch (e) {
+      footNote.textContent = "שגיאת חיבור ל-GitHub: " + e.message;
+    }
+  }
+
+  async function togglePump() {
+    if (busy) return;
+    busy = true;
+    toggleBtn.disabled = true;
+    var wantOn = !latestPumpOn;
+    try {
+      await commit(function (data) {
+        data.commandId = (data.commandId || 0) + 1;
+        data.command = wantOn ? "on" : "off";
+      });
+      actionHint.textContent = "פקודה נשלחה · ממתין שהבקר יבצע אותה";
+    } catch (e) {
+      footNote.textContent = "שגיאה בשליחת הפקודה: " + e.message;
+    } finally {
+      busy = false;
+      setTimeout(refresh, 1500);
+    }
+  }
+
+  async function deleteEntry(id) {
+    if (busy) return;
+    busy = true;
+    try {
+      await commit(function (data) {
+        data.log = (data.log || []).filter(function (e) { return e.id !== id; });
+      });
+      await refresh();
+    } catch (e) {
+      footNote.textContent = "שגיאה במחיקה: " + e.message;
+    } finally {
+      busy = false;
+    }
+  }
+
+  toggleBtn.addEventListener("click", togglePump);
+
+  refresh();
+  setInterval(refresh, POLL_MS);
+</script>
+
+</body>
+</html>

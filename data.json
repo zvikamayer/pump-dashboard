@@ -1,0 +1,11 @@
+{
+  "pumpOn": false,
+  "topWet": false,
+  "bottomWet": false,
+  "lastUpdate": 0,
+  "command": null,
+  "commandId": 0,
+  "lastAppliedCommandId": 0,
+  "nextId": 1,
+  "log": []
+}
