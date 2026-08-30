@@ -329,66 +329,8 @@
 </div>
 
 <script>
-  // ---- הגדרות חיבור ל-GitHub ----
-  var GITHUB_OWNER = "zvikamayer";
-  var GITHUB_REPO = "pump-dashboard";
-  var GITHUB_TOKEN = "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";
-  var FILE_PATH = "data.json";
-  var API_URL = "https://api.github.com/repos/" + GITHUB_OWNER + "/" + GITHUB_REPO + "/contents/" + FILE_PATH;
-  var POLL_MS = 20000;
-
   function pad(n) { return String(n).padStart(2, "0"); }
   var DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
-
-  function b64DecodeUtf8(str) {
-    return decodeURIComponent(atob(str.replace(/\n/g, "")).split("").map(function (c) {
-      return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(""));
-  }
-
-  function b64EncodeUtf8(str) {
-    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function (_, p1) {
-      return String.fromCharCode("0x" + p1);
-    }));
-  }
-
-  async function githubGet() {
-    var res = await fetch(API_URL, {
-      headers: { "Authorization": "Bearer " + GITHUB_TOKEN, "Accept": "application/vnd.github+json" }
-    });
-    if (!res.ok) throw new Error("שגיאת קריאה מ-GitHub: " + res.status);
-    var body = await res.json();
-    var data = JSON.parse(b64DecodeUtf8(body.content));
-    return { data: data, sha: body.sha };
-  }
-
-  async function githubPut(data, sha) {
-    var res = await fetch(API_URL, {
-      method: "PUT",
-      headers: { "Authorization": "Bearer " + GITHUB_TOKEN, "Accept": "application/vnd.github+json", "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: "עדכון מהאתר",
-        content: b64EncodeUtf8(JSON.stringify(data, null, 2)),
-        sha: sha
-      })
-    });
-    if (!res.ok) throw new Error("שגיאת כתיבה ל-GitHub: " + res.status);
-    var body = await res.json();
-    return body.content.sha;
-  }
-
-  // מבצע שינוי עם ניסיון חוזר אחד אם ה-sha התיישן בינתיים (מישהו אחר כתב במקביל)
-  async function commit(mutatorFn) {
-    var current = await githubGet();
-    mutatorFn(current.data);
-    try {
-      await githubPut(current.data, current.sha);
-    } catch (e) {
-      current = await githubGet();
-      mutatorFn(current.data);
-      await githubPut(current.data, current.sha);
-    }
-  }
 
   // ---- שעון (שעון הדפדפן שלך, תמיד מדויק) ----
   var clockEl = document.getElementById("clock");
@@ -416,7 +358,6 @@
   var topState = document.getElementById("topState"), bottomState = document.getElementById("bottomState");
 
   var latestPumpOn = false;
-  var busy = false;
   var mqttReady = false;
 
   // ---- MQTT (מצב חי - עדכון כמעט מיידי, ופקודות הפעלה מיידיות) ----
@@ -440,7 +381,9 @@
     try {
       var data = JSON.parse(message.toString());
       renderLiveStatus(data);
+      renderLog(data.log || []);
       lastSeen.textContent = "עדכון חי · עכשיו";
+      footNote.textContent = "מחובר בלייב · " + (data.log || []).length + " רשומות ביומן";
     } catch (e) { /* התעלמות מהודעה פגומה */ }
   });
 
@@ -505,22 +448,6 @@
     bottomState.textContent = bottomWet ? "רטוב" : "יבש";
   }
 
-  // יומן ההיסטוריה - עדיין דרך GitHub, פעם ב-20 שניות (לא צריך להיות מיידי)
-  async function refreshLog() {
-    try {
-      var current = await githubGet();
-      renderLog(current.data.log || []);
-      if (!mqttReady) {
-        // גיבוי: כל עוד אין חיבור MQTT, מציגים לפחות את המצב האחרון הידוע מ-GitHub
-        renderLiveStatus(current.data);
-      }
-      footNote.textContent = (mqttReady ? "מחובר בלייב" : "עדיין לא מחובר בלייב") +
-        " · " + (current.data.log || []).length + " רשומות ביומן";
-    } catch (e) {
-      footNote.textContent = "שגיאת חיבור ל-GitHub (יומן): " + e.message;
-    }
-  }
-
   function togglePump() {
     if (!mqttReady) {
       footNote.textContent = "אין עדיין חיבור לייב - נסי שוב בעוד רגע";
@@ -531,25 +458,15 @@
     actionHint.textContent = "פקודה נשלחה מיידית לבקר…";
   }
 
-  async function deleteEntry(id) {
-    if (busy) return;
-    busy = true;
-    try {
-      await commit(function (data) {
-        data.log = (data.log || []).filter(function (e) { return e.id !== id; });
-      });
-      await refreshLog();
-    } catch (e) {
-      footNote.textContent = "שגיאה במחיקה: " + e.message;
-    } finally {
-      busy = false;
+  function deleteEntry(id) {
+    if (!mqttReady) {
+      footNote.textContent = "אין עדיין חיבור לייב - נסי שוב בעוד רגע";
+      return;
     }
+    mqttClient.publish(MQTT_TOPIC_CMD, "delete:" + id);
   }
 
   toggleBtn.addEventListener("click", togglePump);
-
-  refreshLog();
-  setInterval(refreshLog, POLL_MS);
 </script>
 
 </body>
