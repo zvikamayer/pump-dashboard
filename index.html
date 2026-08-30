@@ -229,7 +229,7 @@
   }
 
   thead th.num, tbody td.num { text-align: left; }
-  thead th.icon-col { width: 40px; }
+  thead th.icon-col { width: 76px; }
 
   tbody td { padding: 13px 26px; border-bottom: 1px solid var(--line); vertical-align: middle; }
   tbody tr:last-child td { border-bottom: none; }
@@ -242,12 +242,13 @@
   .duration { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
 
   .icon-btn {
-    border: none; background: transparent; color: var(--ink-dim); width: 28px; height: 28px; border-radius: 7px;
-    display: flex; align-items: center; justify-content: center; opacity: 0.55;
-    transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+    border: 1px solid var(--line); background: var(--surface-2); color: var(--danger);
+    padding: 6px 12px; border-radius: 7px; font-size: 0.8rem; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+    transition: background 0.12s ease, border-color 0.12s ease;
   }
 
-  tr:hover .icon-btn { opacity: 1; }
+  .icon-btn:hover { background: var(--danger-bg); border-color: var(--danger); }
   .icon-btn:hover { background: var(--danger-bg); color: var(--danger); opacity: 1; }
   .icon-btn:disabled { opacity: 0.3; cursor: default; }
 
@@ -417,7 +418,7 @@
       tr.innerHTML =
         '<td><div class="start-cell">' + startHtml + "</div></td>" +
         '<td class="num"><span class="duration">' + fmtDuration(entry.durationSec) + "</span></td>" +
-        '<td><button class="icon-btn" aria-label="מחק רשומה" title="מחק רשומה">✕</button></td>';
+        '<td><button class="icon-btn" aria-label="מחק רשומה" title="מחק רשומה">מחק ✕</button></td>';
       tr.querySelector(".icon-btn").addEventListener("click", function () { deleteEntry(entry.id); });
       logBody.appendChild(tr);
     });
