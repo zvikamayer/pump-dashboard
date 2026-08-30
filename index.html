@@ -98,6 +98,18 @@
     box-shadow: var(--shadow);
   }
 
+  .fault-banner {
+    padding: 14px 20px;
+    background: var(--danger-bg);
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-align: center;
+  }
+
+  .fault-banner[hidden] { display: none; }
+
   .tank-card {
     padding: 24px 26px;
     display: flex;
@@ -269,6 +281,10 @@
     <div class="sub" id="lastSeen">ESP32-S3 · תא איסוף עיבוי</div>
   </div>
 
+  <div class="card fault-banner" id="faultBanner" hidden>
+    ⚠️ מים בחיישן העליון ולא בתחתון — יש לבדוק בשטח מה קורה
+  </div>
+
   <div class="card tank-card">
     <div class="tank-frame">
       <div class="tank" id="tank">
@@ -326,7 +342,7 @@
     </div>
   </div>
 
-  <div class="foot-note" id="footNote">מתחבר ל-GitHub…</div>
+  <div class="foot-note" id="footNote">מתחבר…</div>
 </div>
 
 <script>
@@ -357,6 +373,7 @@
   var topCap = document.getElementById("topCap"), bottomCap = document.getElementById("bottomCap");
   var topDot = document.getElementById("topDot"), bottomDot = document.getElementById("bottomDot");
   var topState = document.getElementById("topState"), bottomState = document.getElementById("bottomState");
+  var faultBanner = document.getElementById("faultBanner");
 
   var latestPumpOn = false;
   var mqttReady = false;
@@ -447,6 +464,8 @@
     bottomDot.classList.toggle("wet", bottomWet);
     bottomState.classList.toggle("wet", bottomWet);
     bottomState.textContent = bottomWet ? "רטוב" : "יבש";
+
+    faultBanner.hidden = !data.fault;
   }
 
   function togglePump() {
