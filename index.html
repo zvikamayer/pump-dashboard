@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Heebo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/mqtt@5/dist/mqtt.min.js"></script>
 
 <style>
   :root {
@@ -331,7 +332,7 @@
   // ---- הגדרות חיבור ל-GitHub ----
   var GITHUB_OWNER = "zvikamayer";
   var GITHUB_REPO = "pump-dashboard";
-  var GITHUB_TOKEN = "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";
+  var GITHUB_TOKEN = "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";
   var FILE_PATH = "data.json";
   var API_URL = "https://api.github.com/repos/" + GITHUB_OWNER + "/" + GITHUB_REPO + "/contents/" + FILE_PATH;
   var POLL_MS = 20000;
@@ -416,6 +417,32 @@
 
   var latestPumpOn = false;
   var busy = false;
+  var mqttReady = false;
+
+  // ---- MQTT (מצב חי - עדכון כמעט מיידי, ופקודות הפעלה מיידיות) ----
+  var MQTT_URL = "wss://broker.hivemq.com:8884/mqtt";
+  var MQTT_TOPIC_STATUS = "zvikamayer-pump/status";
+  var MQTT_TOPIC_CMD = "zvikamayer-pump/command";
+
+  var mqttClient = mqtt.connect(MQTT_URL, { clientId: "site-" + Math.random().toString(16).slice(2) });
+
+  mqttClient.on("connect", function () {
+    mqttReady = true;
+    mqttClient.subscribe(MQTT_TOPIC_STATUS);
+    footNote.textContent = "מחובר בלייב · ממתין לעדכון מהבקר";
+  });
+
+  mqttClient.on("reconnect", function () { mqttReady = false; });
+  mqttClient.on("close", function () { mqttReady = false; });
+
+  mqttClient.on("message", function (topic, message) {
+    if (topic !== MQTT_TOPIC_STATUS) return;
+    try {
+      var data = JSON.parse(message.toString());
+      renderLiveStatus(data);
+      lastSeen.textContent = "עדכון חי · עכשיו";
+    } catch (e) { /* התעלמות מהודעה פגומה */ }
+  });
 
   function fmtDuration(sec) {
     var m = Math.floor(sec / 60), s = sec % 60;
@@ -453,7 +480,8 @@
     });
   }
 
-  function renderStatus(data) {
+  // מצב חי (פעם על כל הודעת MQTT) - שעון הבקר, מד המיכל, סטטוס משאבה
+  function renderLiveStatus(data) {
     latestPumpOn = !!data.pumpOn;
     pill.classList.toggle("on", latestPumpOn);
     statusText.textContent = latestPumpOn ? "פועלת" : "כבויה";
@@ -461,8 +489,8 @@
     toggleBtn.classList.toggle("stop", latestPumpOn);
     toggleBtn.disabled = false;
     actionHint.textContent = latestPumpOn
-      ? "המשאבה פועלת כרגע · לחיצה תשלח פקודת עצירה"
-      : "שולח פקודה לבקר בסנכרון הבא שלו (עד 30 שניות)";
+      ? "המשאבה פועלת כרגע · לחיצה תעצור אותה מיידית"
+      : "לחיצה תפעיל את המשאבה מיידית";
 
     var topWet = !!data.topWet, bottomWet = !!data.bottomWet;
     var level = topWet ? 88 : (bottomWet ? 50 : 12);
@@ -475,44 +503,32 @@
     bottomDot.classList.toggle("wet", bottomWet);
     bottomState.classList.toggle("wet", bottomWet);
     bottomState.textContent = bottomWet ? "רטוב" : "יבש";
-
-    if (data.lastUpdate) {
-      var mins = Math.round((Date.now() / 1000 - data.lastUpdate) / 60);
-      lastSeen.textContent = "עודכן מהבקר לפני " + (mins < 1 ? "פחות מדקה" : mins + " דק'");
-    } else {
-      lastSeen.textContent = "הבקר עדיין לא סונכרן";
-    }
-
-    renderLog(data.log || []);
-    footNote.textContent = "מחובר · " + (data.log || []).length + " רשומות ביומן · הבקר בודק פקודות חדשות כל 30 שניות בערך";
   }
 
-  async function refresh() {
+  // יומן ההיסטוריה - עדיין דרך GitHub, פעם ב-20 שניות (לא צריך להיות מיידי)
+  async function refreshLog() {
     try {
       var current = await githubGet();
-      renderStatus(current.data);
+      renderLog(current.data.log || []);
+      if (!mqttReady) {
+        // גיבוי: כל עוד אין חיבור MQTT, מציגים לפחות את המצב האחרון הידוע מ-GitHub
+        renderLiveStatus(current.data);
+      }
+      footNote.textContent = (mqttReady ? "מחובר בלייב" : "עדיין לא מחובר בלייב") +
+        " · " + (current.data.log || []).length + " רשומות ביומן";
     } catch (e) {
-      footNote.textContent = "שגיאת חיבור ל-GitHub: " + e.message;
+      footNote.textContent = "שגיאת חיבור ל-GitHub (יומן): " + e.message;
     }
   }
 
-  async function togglePump() {
-    if (busy) return;
-    busy = true;
-    toggleBtn.disabled = true;
-    var wantOn = !latestPumpOn;
-    try {
-      await commit(function (data) {
-        data.commandId = (data.commandId || 0) + 1;
-        data.command = wantOn ? "on" : "off";
-      });
-      actionHint.textContent = "פקודה נשלחה · ממתין שהבקר יבצע אותה";
-    } catch (e) {
-      footNote.textContent = "שגיאה בשליחת הפקודה: " + e.message;
-    } finally {
-      busy = false;
-      setTimeout(refresh, 1500);
+  function togglePump() {
+    if (!mqttReady) {
+      footNote.textContent = "אין עדיין חיבור לייב - נסי שוב בעוד רגע";
+      return;
     }
+    var wantOn = !latestPumpOn;
+    mqttClient.publish(MQTT_TOPIC_CMD, wantOn ? "on" : "off");
+    actionHint.textContent = "פקודה נשלחה מיידית לבקר…";
   }
 
   async function deleteEntry(id) {
@@ -522,7 +538,7 @@
       await commit(function (data) {
         data.log = (data.log || []).filter(function (e) { return e.id !== id; });
       });
-      await refresh();
+      await refreshLog();
     } catch (e) {
       footNote.textContent = "שגיאה במחיקה: " + e.message;
     } finally {
@@ -532,8 +548,8 @@
 
   toggleBtn.addEventListener("click", togglePump);
 
-  refresh();
-  setInterval(refresh, POLL_MS);
+  refreshLog();
+  setInterval(refreshLog, POLL_MS);
 </script>
 
 </body>
