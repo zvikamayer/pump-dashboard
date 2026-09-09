@@ -267,6 +267,53 @@
   .empty-row td { padding: 30px 26px; text-align: center; color: var(--ink-dim); font-size: 0.88rem; }
   .foot-note { font-size: 0.76rem; color: var(--ink-dim); text-align: center; line-height: 1.6; }
 
+  .servo-card { padding: 18px 26px 22px; display: flex; flex-direction: column; gap: 14px; }
+
+  #servoAngleLabel {
+    font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+    font-size: 0.95rem; font-weight: 600; color: var(--accent);
+  }
+
+  .joystick-track {
+    position: relative;
+    direction: ltr;
+    height: 40px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    touch-action: none;
+    cursor: pointer;
+  }
+
+  .joystick-fill {
+    position: absolute; top: 0; bottom: 0; left: 0;
+    width: 50%;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 25%, transparent);
+    pointer-events: none;
+  }
+
+  .joystick-handle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 34px;
+    height: 34px;
+    margin-top: -17px;
+    margin-left: -17px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid var(--surface);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    pointer-events: none;
+  }
+
+  .joystick-labels {
+    display: flex; justify-content: space-between;
+    font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; color: var(--ink-dim);
+    direction: ltr;
+  }
+
   @media (max-width: 460px) {
     .tank-card { flex-direction: column; align-items: stretch; }
     .tank-frame { align-self: center; }
@@ -329,6 +376,18 @@
     </div>
   </div>
 
+  <div class="card servo-card">
+    <div class="log-head">
+      <h2>בקרת סרוו (SG90)</h2>
+      <span class="log-count" id="servoAngleLabel">90°</span>
+    </div>
+    <div class="joystick-track" id="joystickTrack">
+      <div class="joystick-fill" id="joystickFill"></div>
+      <div class="joystick-handle" id="joystickHandle"></div>
+    </div>
+    <div class="joystick-labels"><span>0°</span><span>90°</span><span>180°</span></div>
+  </div>
+
   <div class="card log-card">
     <div class="log-head">
       <h2>יומן הפעלות</h2>
@@ -374,6 +433,10 @@
   var topDot = document.getElementById("topDot"), bottomDot = document.getElementById("bottomDot");
   var topState = document.getElementById("topState"), bottomState = document.getElementById("bottomState");
   var faultBanner = document.getElementById("faultBanner");
+  var joystickTrack = document.getElementById("joystickTrack");
+  var joystickHandle = document.getElementById("joystickHandle");
+  var joystickFill = document.getElementById("joystickFill");
+  var servoAngleLabel = document.getElementById("servoAngleLabel");
 
   var latestPumpOn = false;
   var mqttReady = false;
@@ -466,6 +529,12 @@
     bottomState.textContent = bottomWet ? "רטוב" : "יבש";
 
     faultBanner.hidden = !data.fault;
+
+    // סרוו - לא קשור למשאבה. מעדכנים את מיקום הג'ויסטיק לפי מצב הבקר,
+    // אבל רק כשלא גוררים כרגע (כדי לא "להיאבק" ביד של המשתמש).
+    if (!joystickDragging && typeof data.servoAngle === "number") {
+      setJoystickVisual(data.servoAngle);
+    }
   }
 
   function togglePump() {
@@ -487,6 +556,61 @@
   }
 
   toggleBtn.addEventListener("click", togglePump);
+
+  // ---- ג'ויסטיק לסרוו SG90 (פיצ'ר נפרד, לא קשור למשאבה) ----
+  var joystickDragging = false;
+  var lastServoSendTime = 0;
+  var SERVO_SEND_THROTTLE_MS = 120;
+
+  function setJoystickVisual(angle) {
+    var pct = Math.max(0, Math.min(100, (angle / 180) * 100));
+    joystickHandle.style.left = pct + "%";
+    joystickFill.style.width = pct + "%";
+    servoAngleLabel.textContent = Math.round(angle) + "°";
+  }
+
+  function angleFromEvent(clientX) {
+    var rect = joystickTrack.getBoundingClientRect();
+    var ratio = (clientX - rect.left) / rect.width;
+    ratio = Math.max(0, Math.min(1, ratio));
+    return Math.round(ratio * 180);
+  }
+
+  function sendServoAngle(angle, force) {
+    if (!mqttReady) return;
+    var now = Date.now();
+    if (!force && now - lastServoSendTime < SERVO_SEND_THROTTLE_MS) return;
+    lastServoSendTime = now;
+    mqttClient.publish(MQTT_TOPIC_CMD, "servo:" + angle);
+  }
+
+  function handleJoystickMove(clientX, isFinal) {
+    var angle = angleFromEvent(clientX);
+    setJoystickVisual(angle);
+    sendServoAngle(angle, isFinal);
+  }
+
+  joystickTrack.addEventListener("pointerdown", function (e) {
+    joystickDragging = true;
+    joystickTrack.setPointerCapture(e.pointerId);
+    handleJoystickMove(e.clientX, false);
+  });
+
+  joystickTrack.addEventListener("pointermove", function (e) {
+    if (!joystickDragging) return;
+    handleJoystickMove(e.clientX, false);
+  });
+
+  function endJoystickDrag(e) {
+    if (!joystickDragging) return;
+    joystickDragging = false;
+    handleJoystickMove(e.clientX, true); // שליחה סופית מובטחת, בלי throttle
+  }
+
+  joystickTrack.addEventListener("pointerup", endJoystickDrag);
+  joystickTrack.addEventListener("pointercancel", endJoystickDrag);
+
+  setJoystickVisual(90); // ברירת מחדל עד שמתקבל עדכון אמיתי מהבקר
 </script>
 
 </body>
