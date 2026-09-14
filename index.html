@@ -268,6 +268,7 @@
   .foot-note { font-size: 0.76rem; color: var(--ink-dim); text-align: center; line-height: 1.6; }
 
   .servo-card { padding: 18px 26px 22px; display: flex; flex-direction: column; gap: 14px; }
+  .open90-btn { align-self: flex-start; }
 
   #servoAngleLabel {
     font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
@@ -386,6 +387,7 @@
       <div class="joystick-handle" id="joystickHandle"></div>
     </div>
     <div class="joystick-labels"><span>0°</span><span>90°</span><span>180°</span></div>
+    <button class="switch-btn open90-btn" id="open90Btn">פתח (90°, 2 שניות)</button>
   </div>
 
   <div class="card log-card">
@@ -437,6 +439,7 @@
   var joystickHandle = document.getElementById("joystickHandle");
   var joystickFill = document.getElementById("joystickFill");
   var servoAngleLabel = document.getElementById("servoAngleLabel");
+  var open90Btn = document.getElementById("open90Btn");
 
   var latestPumpOn = false;
   var mqttReady = false;
@@ -609,6 +612,11 @@
 
   joystickTrack.addEventListener("pointerup", endJoystickDrag);
   joystickTrack.addEventListener("pointercancel", endJoystickDrag);
+
+  open90Btn.addEventListener("click", function () {
+    if (!mqttReady) return;
+    mqttClient.publish(MQTT_TOPIC_CMD, "open90");
+  });
 
   setJoystickVisual(90); // ברירת מחדל עד שמתקבל עדכון אמיתי מהבקר
 </script>
